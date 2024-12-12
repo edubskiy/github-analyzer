@@ -1,156 +1,384 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { supabase } from '../../../lib/supabaseClient';
+import Toast from '@/components/Toast';
+import EditKeyModal from '@/components/EditKeyModal';
 
 export default function ApiKeysDashboard() {
-  const [apiKeys, setApiKeys] = useState([
-    // Temporary mock data
-    { 
-      id: '1', 
-      name: 'Production API Key',
-      key: 'sk_prod_123456789',
-      created: '2024-03-20T10:00:00Z',
-      status: 'active'
-    },
-  ]);
-  const [isCreatingKey, setIsCreatingKey] = useState(false);
+  const [apiKeys, setApiKeys] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
+  const [monthlyLimit, setMonthlyLimit] = useState('1000');
+  const [isLoading, setIsLoading] = useState(true);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [editingKey, setEditingKey] = useState(null);
+
+  // Fetch API Keys on component mount
+  useEffect(() => {
+    fetchApiKeys();
+  }, []);
+
+  const fetchApiKeys = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('api_keys')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setApiKeys(data || []);
+    } catch (error) {
+      console.error('Error fetching API keys:', error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const generateApiKey = () => {
+    return `sk_${Math.random().toString(36).substr(2, 32)}`;
+  };
 
   const handleCreateKey = async (e) => {
     e.preventDefault();
-    // TODO: Implement API call to create key
-    const newKey = {
-      id: Date.now().toString(),
-      name: newKeyName,
-      key: `sk_${Math.random().toString(36).substr(2, 9)}`,
-      created: new Date().toISOString(),
-      status: 'active'
-    };
-    setApiKeys([...apiKeys, newKey]);
-    setNewKeyName('');
-    setIsCreatingKey(false);
+    try {
+      const newKey = {
+        name: newKeyName,
+        key: generateApiKey(),
+        usage: 0,
+        monthly_limit: parseInt(monthlyLimit),
+        is_visible: false
+      };
+
+      const { data, error } = await supabase
+        .from('api_keys')
+        .insert([newKey])
+        .select();
+
+      if (error) throw error;
+
+      setApiKeys([data[0], ...apiKeys]);
+      setIsModalOpen(false);
+      setNewKeyName('');
+      setMonthlyLimit('1000');
+    } catch (error) {
+      console.error('Error creating API key:', error.message);
+    }
   };
 
   const handleDeleteKey = async (keyId) => {
-    if (!confirm('Are you sure you want to revoke this API key? This action cannot be undone.')) return;
-    // TODO: Implement API call to delete key
-    setApiKeys(apiKeys.filter(key => key.id !== keyId));
+    try {
+      const { error } = await supabase
+        .from('api_keys')
+        .delete()
+        .eq('id', keyId);
+
+      if (error) throw error;
+
+      setApiKeys(apiKeys.filter(key => key.id !== keyId));
+      setToastMessage('API key deleted successfully!');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } catch (error) {
+      console.error('Error deleting API key:', error.message);
+      setToastMessage('Failed to delete API key');
+      setShowToast(true);
+    }
   };
 
+  const handleToggleVisibility = async (keyId) => {
+    try {
+      const keyToUpdate = apiKeys.find(key => key.id === keyId);
+      const { data, error } = await supabase
+        .from('api_keys')
+        .update({ is_visible: !keyToUpdate.is_visible })
+        .eq('id', keyId)
+        .select();
+
+      if (error) throw error;
+
+      setApiKeys(apiKeys.map(key => 
+        key.id === keyId ? data[0] : key
+      ));
+    } catch (error) {
+      console.error('Error toggling visibility:', error.message);
+    }
+  };
+
+  // Add copy functionality
+  const handleCopyKey = async (key) => {
+    try {
+      await navigator.clipboard.writeText(key);
+      setToastMessage('API key copied to clipboard!');
+      setShowToast(true);
+      // Auto-hide toast after 3 seconds
+      setTimeout(() => {
+        setShowToast(false);
+      }, 3000);
+    } catch (error) {
+      console.error('Error copying to clipboard:', error.message);
+      setToastMessage('Failed to copy API key');
+      setShowToast(true);
+    }
+  };
+
+  // Add the edit handler
+  const handleEditKey = async (updatedKey) => {
+    try {
+      const { data, error } = await supabase
+        .from('api_keys')
+        .update({
+          name: updatedKey.name,
+          monthly_limit: updatedKey.monthly_limit
+        })
+        .eq('id', updatedKey.id)
+        .select();
+
+      if (error) throw error;
+
+      setApiKeys(apiKeys.map(key => 
+        key.id === updatedKey.id ? data[0] : key
+      ));
+      setEditingKey(null);
+      setToastMessage('API key updated successfully!');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } catch (error) {
+      console.error('Error updating API key:', error.message);
+      setToastMessage('Failed to update API key');
+      setShowToast(true);
+    }
+  };
+
+  if (isLoading) {
+    return <div className="min-h-screen bg-white dark:bg-gray-900 p-8 flex items-center justify-center">
+      Loading...
+    </div>;
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-white dark:bg-gray-900 p-8">
+      {showToast && (
+        <Toast 
+          message={toastMessage} 
+          onClose={() => setShowToast(false)} 
+          type="error"
+        />
+      )}
+      
+      {editingKey && (
+        <EditKeyModal
+          key={editingKey.id}
+          keyData={editingKey}
+          onClose={() => setEditingKey(null)}
+          onSave={handleEditKey}
+        />
+      )}
+
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="px-4 py-6 sm:px-0">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">API Keys</h1>
-            <button
-              onClick={() => setIsCreatingKey(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              Create New API Key
-            </button>
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                Pages / Overview
+              </div>
+              <h1 className="text-2xl font-semibold">Overview</h1>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm">Operational</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Current Plan Card */}
+          <div className="bg-gradient-to-r from-rose-200 via-purple-200 to-blue-200 dark:from-rose-900 dark:via-purple-900 dark:to-blue-900 rounded-xl p-6 mb-8">
+            <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">CURRENT PLAN</div>
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-semibold mb-4">Researcher</h2>
+                <div>
+                  <div className="text-sm mb-2">API Limit</div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div className="bg-blue-500 h-2 rounded-full" style={{ width: '0%' }}></div>
+                  </div>
+                  <div className="text-sm mt-1">0/1,000 Requests</div>
+                </div>
+              </div>
+              <button className="bg-white/90 dark:bg-gray-800/90 px-4 py-2 rounded-lg text-sm">
+                Manage Plan
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Create Key Form */}
-        {isCreatingKey && (
-          <div className="mt-5 md:mt-0 md:col-span-2">
-            <form onSubmit={handleCreateKey}>
-              <div className="shadow sm:rounded-md sm:overflow-hidden">
-                <div className="px-4 py-5 bg-white dark:bg-gray-800 space-y-6 sm:p-6">
-                  <div>
-                    <label htmlFor="key-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      API Key Name
-                    </label>
-                    <input
-                      type="text"
-                      name="key-name"
-                      id="key-name"
-                      value={newKeyName}
-                      onChange={(e) => setNewKeyName(e.target.value)}
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                      placeholder="e.g., Production API Key"
-                      required
-                    />
-                  </div>
+        {/* API Keys Section */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className="text-lg font-semibold">API Keys</h2>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              +
+            </button>
+          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            The key is used to authenticate your requests to the Research API. To learn more, see the documentation page.
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-sm text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+                  <th className="pb-3">NAME</th>
+                  <th className="pb-3">USAGE</th>
+                  <th className="pb-3">KEY</th>
+                  <th className="pb-3">OPTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {apiKeys.map((key) => (
+                  <tr key={key.id} className="border-b dark:border-gray-700">
+                    <td className="py-4">{key.name}</td>
+                    <td className="py-4">{key.usage}</td>
+                    <td className="py-4 font-mono">
+                      {key.is_visible ? key.key : '********************************'}
+                    </td>
+                    <td className="py-4">
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={() => handleToggleVisibility(key.id)}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          <span className="sr-only">
+                            {key.is_visible ? 'Hide' : 'Show'}
+                          </span>
+                          {key.is_visible ? '👁️' : '👁️‍🗨️'}
+                        </button>
+                        <button 
+                          onClick={() => setEditingKey(key)}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          <span className="sr-only">Edit</span>
+                          ✏️
+                        </button>
+                        <button 
+                          onClick={() => handleCopyKey(key.key)}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          <span className="sr-only">Copy</span>
+                          📋
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteKey(key.id)}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          <span className="sr-only">Delete</span>
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Create API Key Modal */}
+        {isModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-8 w-full max-w-md shadow-lg">
+              <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Create a New API Key</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                Enter a name and limit for the new API key.
+              </p>
+              
+              <form onSubmit={handleCreateKey}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Key Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter a unique name to identify this key"
+                    required
+                  />
                 </div>
-                <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 text-right sm:px-6">
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Limit monthly usage*
+                  </label>
+                  <input
+                    type="number"
+                    value={monthlyLimit}
+                    onChange={(e) => setMonthlyLimit(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    *If the combined usage of all your keys exceeds your plan's limit, all requests will be rejected.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
                   <button
                     type="button"
-                    onClick={() => setIsCreatingKey(false)}
-                    className="mr-3 inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
                   >
                     Create
                   </button>
                 </div>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         )}
 
-        {/* API Keys Table */}
-        <div className="mt-8 flex flex-col">
-          <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-            <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-              <div className="shadow overflow-hidden border-b border-gray-200 dark:border-gray-700 sm:rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-800">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        API Key
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        Created
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th scope="col" className="relative px-6 py-3">
-                        <span className="sr-only">Actions</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                    {apiKeys.map((key) => (
-                      <tr key={key.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          {key.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 font-mono">
-                          {key.key}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                          {new Date(key.created).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                            {key.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => handleDeleteKey(key.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Revoke
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+        {/* Usage Alerts Section */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold mb-4">Email usage alerts</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            An alert will be sent to your email when your monthly usage reaches the set threshold.
+          </p>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value="90"
+                className="w-16 px-2 py-1 border rounded"
+              />
+              <span>%</span>
             </div>
+            <button className="text-gray-500 hover:text-gray-700">✏️</button>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked className="rounded" />
+              <span>Enabled</span>
+            </label>
           </div>
+        </div>
+
+        {/* Contact Section */}
+        <div className="text-center">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            Have any questions, feedback or need support? We'd love to hear from you!
+          </p>
+          <button className="px-6 py-2 border rounded-full hover:bg-gray-50 dark:hover:bg-gray-800">
+            Contact us
+          </button>
         </div>
       </div>
     </div>
