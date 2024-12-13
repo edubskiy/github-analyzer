@@ -1,8 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { supabase } from '../../../lib/supabaseClient';
-import Toast from '@/components/Toast';
-import EditKeyModal from '@/components/EditKeyModal';
+
+// Dynamically import components with no SSR
+const Toast = dynamic(() => import('@/components/Toast'), { ssr: false });
+const EditKeyModal = dynamic(() => import('@/components/EditKeyModal'), { ssr: false });
 
 export default function ApiKeysDashboard() {
   const [apiKeys, setApiKeys] = useState([]);
@@ -12,13 +15,10 @@ export default function ApiKeysDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('info');
   const [editingKey, setEditingKey] = useState(null);
 
-  // Fetch API Keys on component mount
-  useEffect(() => {
-    fetchApiKeys();
-  }, []);
-
+  // Define fetchApiKeys before using it in useEffect
   const fetchApiKeys = async () => {
     try {
       const { data, error } = await supabase
@@ -34,6 +34,11 @@ export default function ApiKeysDashboard() {
       setIsLoading(false);
     }
   };
+
+  // Now use fetchApiKeys in useEffect
+  useEffect(() => {
+    fetchApiKeys();
+  }, []);
 
   const generateApiKey = () => {
     return `sk_${Math.random().toString(36).substr(2, 32)}`;
@@ -77,11 +82,13 @@ export default function ApiKeysDashboard() {
 
       setApiKeys(apiKeys.filter(key => key.id !== keyId));
       setToastMessage('API key deleted successfully!');
+      setToastType('error');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     } catch (error) {
       console.error('Error deleting API key:', error.message);
       setToastMessage('Failed to delete API key');
+      setToastType('error');
       setShowToast(true);
     }
   };
@@ -110,6 +117,7 @@ export default function ApiKeysDashboard() {
     try {
       await navigator.clipboard.writeText(key);
       setToastMessage('API key copied to clipboard!');
+      setToastType('info');
       setShowToast(true);
       // Auto-hide toast after 3 seconds
       setTimeout(() => {
@@ -118,6 +126,7 @@ export default function ApiKeysDashboard() {
     } catch (error) {
       console.error('Error copying to clipboard:', error.message);
       setToastMessage('Failed to copy API key');
+      setToastType('error');
       setShowToast(true);
     }
   };
@@ -141,19 +150,28 @@ export default function ApiKeysDashboard() {
       ));
       setEditingKey(null);
       setToastMessage('API key updated successfully!');
+      setToastType('info');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     } catch (error) {
       console.error('Error updating API key:', error.message);
       setToastMessage('Failed to update API key');
+      setToastType('error');
       setShowToast(true);
     }
   };
 
+  // Only render content after initial client-side load
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
   if (isLoading) {
-    return <div className="min-h-screen bg-white dark:bg-gray-900 p-8 flex items-center justify-center">
-      Loading...
-    </div>;
+    return (
+      <div className="min-h-screen bg-white dark:bg-gray-900 p-8 flex items-center justify-center">
+        Loading...
+      </div>
+    );
   }
 
   return (
@@ -162,13 +180,12 @@ export default function ApiKeysDashboard() {
         <Toast 
           message={toastMessage} 
           onClose={() => setShowToast(false)} 
-          type="error"
+          type={toastType}
         />
       )}
       
       {editingKey && (
         <EditKeyModal
-          key={editingKey.id}
           keyData={editingKey}
           onClose={() => setEditingKey(null)}
           onSave={handleEditKey}
