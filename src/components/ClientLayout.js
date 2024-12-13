@@ -5,11 +5,15 @@ import Sidebar from '@/components/Sidebar';
 export default function ClientLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
   return (
     <div className="flex min-h-screen">
       <Sidebar 
         isOpen={isSidebarOpen} 
-        onToggle={() => setIsSidebarOpen(!isSidebarOpen)} 
+        onToggle={toggleSidebar} 
       />
       <main className={`
         flex-1 transition-all duration-300 ease-in-out
