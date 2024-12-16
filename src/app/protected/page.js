@@ -1,33 +1,30 @@
 'use client';
-import dynamic from 'next/dynamic';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-const Toast = dynamic(() => import('@/components/Toast'), { ssr: false });
+export default function Protected() {
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
-export default function ProtectedPage() {
+  useEffect(() => {
+    setMounted(true);
+    const apiKey = localStorage.getItem('apiKey');
+    
+    if (!apiKey) {
+      router.push('/playground');
+    }
+  }, [router]);
+
+  if (!mounted) return null;
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 p-8">
-      <div className="max-w-xl mx-auto">
+      <div className="max-w-md mx-auto">
         <div className="bg-gray-900 rounded-xl p-8 shadow-2xl border border-gray-800">
-          <div className="flex flex-col gap-6">
-            <div>
-              <h1 className="text-2xl font-bold text-white mb-4">Protected Endpoint</h1>
-              <div className="p-4 bg-green-900/30 border border-green-800 rounded-lg">
-                <p className="text-green-400">
-                  ✓ This endpoint is accessible only with a valid API key
-                </p>
-              </div>
-            </div>
-            
-            <div className="text-gray-400 space-y-4">
-              <p>
-                You have successfully accessed this protected endpoint using your API key.
-                This confirms that your API key is valid and working correctly.
-              </p>
-              <p className="text-sm text-gray-500">
-                You can use this same API key to make requests to our API endpoints.
-              </p>
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold text-white mb-4">Protected Page</h1>
+          <p className="text-gray-400">
+            You have successfully accessed this protected page with your API key.
+          </p>
         </div>
       </div>
     </div>

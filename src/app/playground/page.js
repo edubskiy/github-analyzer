@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Cookies from 'js-cookie';
+
 import Toast from '@/components/Toast';
 
 export default function Playground() {
@@ -11,7 +13,6 @@ export default function Playground() {
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
 
-  // Handle hydration mismatch
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -31,23 +32,36 @@ export default function Playground() {
       const data = await response.json();
 
       if (data.valid) {
+        // Store API key in both localStorage and cookie
+        localStorage.setItem('apiKey', apiKey);
+        Cookies.set('apiKey', apiKey, { secure: true, sameSite: 'strict' });
+        
+        // Show success message
         setToastMessage('Valid API key - /protected can be accessed');
         setToastType('success');
         setShowToast(true);
-        router.push('/protected');
+        
+        // Add console.log to debug
+        console.log('Will redirect to protected page in 2 seconds...');
+        
+        // Delay redirect to show the toast
+        setTimeout(() => {
+          console.log('Redirecting now...');
+          window.location.replace('/protected');
+        }, 2000);
       } else {
         setToastMessage('Invalid API key');
         setToastType('error');
         setShowToast(true);
       }
     } catch (error) {
+      console.error('Error during validation:', error);
       setToastMessage('Error validating API key');
       setToastType('error');
       setShowToast(true);
     }
   };
 
-  // Don't render until client-side hydration is complete
   if (!mounted) {
     return null;
   }
