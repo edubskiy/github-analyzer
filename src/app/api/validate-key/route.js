@@ -4,6 +4,10 @@ export async function POST(request) {
   try {
     const { apiKey } = await request.json();
 
+    console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('Supabase Anon Key:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    
+
     // Query Supabase to check if the API key exists and is valid
     const { data, error } = await supabase
       .from('api_keys')

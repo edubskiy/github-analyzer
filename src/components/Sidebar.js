@@ -19,11 +19,11 @@ export default function Sidebar({ isOpen, onToggle }) {
       {/* Logo and Toggle Button */}
       <div className="flex items-center p-4 border-b border-gray-200 dark:border-gray-800">
         <Link href="/" className="flex items-center gap-2">
-          <img
+          {/* <img
             src="/tavily-logo.svg"
             alt="Tavily Logo"
             className="w-8 h-8"
-          />
+          /> */}
           <span className={`text-xl font-semibold text-gray-900 dark:text-white transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 w-0'}`}>
             tavily
           </span>
