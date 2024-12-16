@@ -89,8 +89,8 @@ export default function Sidebar({ isOpen, onToggle }) {
         </Link>
 
         <Link 
-          href="/api-playground"
-          className={`flex items-center gap-3 p-2 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 ${isActive('/api-playground')}`}
+          href="/playground"
+          className={`flex items-center gap-3 p-2 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 ${isActive('/playground')}`}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
