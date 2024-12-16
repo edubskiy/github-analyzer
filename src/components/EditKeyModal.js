@@ -68,7 +68,7 @@ export default function EditKeyModal({ keyData, onClose, onSave }) {
                 </div>
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                ℹ️ The combined usage of all your keys cannot exceed your plan's limit.
+                ℹ️ The combined usage of all your keys cannot exceed your plan&apos;s limit.
               </p>
             </div>
 
